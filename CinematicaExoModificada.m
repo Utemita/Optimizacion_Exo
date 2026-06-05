@@ -411,6 +411,18 @@ if max(DIP_relative) - min(DIP_relative) < 5
     warning('La articulacion DIP tiene menos de 5 grados de excursion. Revisar parametros.');
 end
 
+% Verificacion de condicion de Grashof
+links_3 = sort([a3, b3, c3, d3]);
+if links_3(1) + links_3(4) > links_3(2) + links_3(3)
+    warning('El tercer mecanismo NO cumple la condicion de Grashof. Puede tener posiciones limite.');
+end
+% Verificacion de continuidad (monotonicidad)
+dDIP = diff(DIP_relative);
+if any(dDIP > 0) && any(dDIP < 0)
+    fprintf('ADVERTENCIA: El movimiento DIP no es monotono. Presenta %d inversiones.\n', ...
+            sum(abs(diff(sign(dDIP))) > 0));
+end
+
 
 %A CONTINUACION GRAFICAMOS LOS RESULTADOS OBTENIDOS
 

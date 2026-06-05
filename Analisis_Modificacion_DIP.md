@@ -136,8 +136,8 @@ Un "eslabon remoto" (Link11) conecta un punto en la falange proximal (cercano al
                 |                        |  a3 = Link11          |
                                          |  b3 = Link12          |
                                          |  c3 = Link13          |
-                                         |  d3 = sqrt(hsm3^2     |
-                                         |       + dsm3^2)       |
+                                         |  d3 = dist IFP-S3     |
+                                         |       (ground)        |
 ```
 
 ### Ventaja del Diseno
@@ -198,6 +198,8 @@ Este angulo cambia cuando la articulacion PIP se flexiona, ya que S2 esta fijo a
 
 Se utiliza el mismo metodo de resolucion que los mecanismos de 4 barras existentes (#1 y #2), basado en la sustitucion de media tangente `t = tan(theta/2)`.
 
+**Interpretacion geometrica del eslabon de bancada (ground link):** En la formulacion local del tercer mecanismo, `d3 = sqrt(hsm3^2 + dsm3^2)` representa la distancia en linea recta desde el origen del sistema de referencia local (ubicado en IFP) hasta el pivote de la manivela en S3. Es decir, `d3` es el eslabon de bancada (ground link) que conecta el origen de referencia con el pivote del crank. El pivote de salida del balancin (rocker) se conecta a la articulacion DIP, la cual se encuentra a una distancia `fm` del IFP a lo largo de la falange medial. La relacion angular entre el balancin y la orientacion real de la falange distal se absorbe en el offset geometrico `THETAaux_fd3`.
+
 **Parametros del mecanismo:**
 - `a3 = Link11` (longitud de la manivela/eslabon remoto)
 - `b3 = Link12` (longitud del acoplador)
@@ -251,6 +253,14 @@ Donde:
 
 **Nota fundamental:** `theta_fd` ya NO es constante respecto a `theta_fm`. Conforme la articulacion PIP se flexiona (theta_fm cambia respecto a theta_fp), el angulo de la manivela `theta_crank3_local` cambia, lo cual acciona el mecanismo de 4 barras y produce un `theta4_3` variable.
 
+### 4.5 Consideraciones sobre la Aproximacion
+
+La formulacion presentada emplea varias simplificaciones que conviene explicitar:
+
+**Longitud de manivela fija (`a3 = Link11`):** En la implementacion, `a3 = Link11` se utiliza como una longitud de manivela constante en las ecuaciones del mecanismo de 4 barras. Sin embargo, la distancia real `|S2 - S3|` varia con la flexion del PIP, ya que S2 esta fijo a la falange proximal y S3 esta fijo a la falange medial. Esta es una aproximacion valida cuando: (a) la variacion en `|S2 - S3|` es pequena en relacion con Link11, o (b) el optimizador ajusta los parametros para minimizar esta discrepancia. Para una formulacion mas rigurosa, se podria calcular `a3_actual(j) = |S2(j) - S3(j)|` en cada paso, pero esto convierte al mecanismo de 4 barras en un mecanismo de geometria variable que requiere solucion iterativa. La aproximacion de longitud fija es aceptable como punto de partida para el diseno, dado que el optimizador encontrara conjuntos de parametros donde el mecanismo se ensambla correctamente en todo el rango de movimiento.
+
+**Eslabon de bancada `d3` y relaciones geometricas:** El eslabon de bancada `d3` representa la distancia IFP-S3 en el marco de referencia local. La salida del balancin se conecta a la articulacion DIP (que esta a una distancia `fm` del IFP a lo largo de la falange medial). Estas relaciones geometricas se manejan mediante el angulo de offset `THETAaux_fd3`, que absorbe la diferencia angular entre la orientacion del balancin y la orientacion real de la falange distal.
+
 ## 5. Tabla de Parametros Nuevos
 
 | Parametro | Simbolo | Significado Fisico | Valor Inicial | Unidad |
@@ -258,7 +268,7 @@ Donde:
 | Link11 | a3 | Longitud del eslabon remoto (S2 en proximal hasta pivote en medial S3) | 25 | mm |
 | Link12 | b3 | Longitud del acoplador del tercer mecanismo de 4 barras | 20 | mm |
 | Link13 | c3 | Longitud del balancin (salida) del tercer mecanismo de 4 barras | 15 | mm |
-| dsm3 | - | Distancia horizontal del soporte S3 al centro de la articulacion IFP sobre la falange medial | 12 | mm |
+| dsm3 | - | Distancia horizontal desde IFP hasta el soporte S3 a lo largo de la falange medial | 12 | mm |
 | hsm3 | - | Altura del soporte S3 perpendicular a la falange medial | 10 | mm |
 | THETAaux_fd3 | - | Offset angular entre el balancin del tercer mecanismo y la falange distal | 30 | grados |
 
