@@ -36,13 +36,25 @@ fd = 24;
 THETAauxfm = 51.39; 
 THETAauxfd = 38.78; 
 
-% Tercer mecanismo de 4 barras (articulacion DIP)
-Link11 = 25;         % Eslabon remoto (S2 -> pivot en medial)
-Link12 = 20;         % Acoplador del tercer mecanismo
-Link13 = 15;         % Balancin del tercer mecanismo
-dsm3 = 12;           % Distancia soporte S3 a IFP sobre falange medial
-hsm3 = 10;           % Altura del soporte S3 perpendicular a falange medial
-THETAaux_fd3 = 30;   % Offset angular para falange distal (grados)
+% ===================== TERCER MECANISMO DE 4 BARRAS (DIP) =====================
+% CORRECCION (v2): El acoplamiento de la falange distal se realiza con un
+% mecanismo de 4 barras que CRUZA la articulacion IFP, usando la falange
+% MEDIAL como bancada (su longitud fm es conocida y fija). La manivela de
+% entrada se monta sobre la falange PROXIMAL (su angulo lo impone theta_fp) y
+% el balancin de salida sobre la falange DISTAL (su angulo define theta_fd).
+% De este modo, conforme la articulacion IFP (PIP) se flexiona, el movimiento
+% relativo proximal-medial acciona el mecanismo y produce una flexion DIP
+% INDEPENDIENTE, monotona y acotada, con un unico motor.
+%
+% La version anterior (eslabon remoto S2->S3 con longitud de manivela fija
+% desligada de la distancia real |S2-S3|) era inconsistente y producia
+% excursiones de ~355 grados (la punta se "volteaba" y las trayectorias se
+% cruzaban). Esta formulacion lo corrige.
+Lpc  = 8;     % Manivela: poste sobre la falange PROXIMAL (pivote en IFP) [mm]
+Lpd  = 18;    % Balancin: poste sobre la falange DISTAL  (pivote en IFD) [mm]
+Lac  = 8.86;  % Acoplador que une las puntas de manivela y balancin [mm]
+BETA1 = 40;   % Angulo de montaje de la manivela respecto a la prox. [grados]
+BETA2 = 110;  % Angulo de montaje del balancin respecto a la distal [grados]
 
 % %Dedo Medio
 % Link1 = 35;
@@ -122,11 +134,10 @@ b2 = Link8;
 % c2 se ingresa como parametro de diseno directo debido a su posicion
 d2 = sqrt( hsp^2 + dsp^2); %Hipotenusa de los soportes de la falange prox.
 
-% Tercer mecanismo de 4 barras
-a3 = Link11;
-b3 = Link12;
-c3 = Link13;
-d3 = sqrt(hsm3^2 + dsm3^2);  % Hipotenusa del soporte S3 en falange medial
+% Tercer mecanismo de 4 barras (bancada = falange medial, longitud fm)
+% La bancada (ground) es la propia falange medial, de longitud fm. No se
+% necesitan parametros adicionales de soporte: los pivotes son las propias
+% articulaciones IFP (entrada) e IFD (salida).
  
 % Enseguida se presenta una breve descripcion de las variables utilizadas
 % en el programa y los valores recomendados para pruebas
@@ -362,41 +373,41 @@ pxIFD(j) = fm*cos(thetafm(j)) + pxIFP(j);
 pyIFD(j) = fm*sin(thetafm(j)) + pyIFP(j);
 
 % TERCER MECANISMO DE 4 BARRAS (Articulacion DIP)
-% Calculo del soporte S3 sobre la falange medial
-THETAps3(j) = THETAfm(j) - atand(hsm3/dsm3);
-thetaps3(j) = deg2rad(THETAps3(j));
-rs3 = sqrt(hsm3^2 + dsm3^2);
-pxS3(j) = pxIFP(j) + rs3*cos(thetaps3(j));
-pyS3(j) = pyIFP(j) + rs3*sin(thetaps3(j));
+% Bancada = falange medial: O1 = IFP, O2 = IFD, longitud fm, orientacion thetafm.
+% Marco local de la medial: origen en O1 (IFP), eje X local hacia O2 (IFD).
+%
+% Manivela (montada en la falange PROXIMAL, pivote en O1): su angulo absoluto
+% es thetafp + BETA1, por lo que en el marco local de la medial vale:
+alpha1_3 = thetafp(j) + deg2rad(BETA1) - thetafm(j);
+Ax3 = Lpc*cos(alpha1_3);   % punta de la manivela (marco local)
+Ay3 = Lpc*sin(alpha1_3);
 
-% Angulo de entrada del tercer mecanismo (enlace remoto desde S2)
-THETA_crank3(j) = atan2d(pyS2(j) - pyS3(j), pxS2(j) - pxS3(j));
-theta_crank3_local(j) = deg2rad(THETA_crank3(j)) - thetafm(j);  % En ref. local de falange medial
+% Restriccion del acoplador: |A - B| = Lac, con B = O2 + Lpd*(cos a2, sin a2)
+% y O2 = (fm, 0). Despejando: Px*cos(a2) + Py*sin(a2) = K3
+Px3 = Ax3 - fm;            % vector O2 -> A
+Py3 = Ay3;
+R3  = sqrt(Px3^2 + Py3^2);
+K3  = (Px3^2 + Py3^2 + Lpd^2 - Lac^2) / (2*Lpd);
 
-% Bancada del tercer mecanismo en sistema local de la falange medial
-theta_base3 = 0;  % A lo largo de la falange medial (eje local X)
-
-% Resolucion del mecanismo de 4 barras #3
-k1_3 = d3*cos(theta_base3) + a3*cos(theta_crank3_local(j));
-k2_3 = d3*sin(theta_base3) + a3*sin(theta_crank3_local(j));
-k3_3 = k1_3^2 + k2_3^2 + c3^2 - b3^2;
-A1_3 = -k3_3 - 2*k1_3*c3;
-B1_3 = 4*k2_3*c3;
-C1_3 = 2*k1_3*c3 - k3_3;
-
-disc3 = B1_3^2 - 4*A1_3*C1_3;
-if disc3 < 0
-    warning('Discriminante negativo en mecanismo 3, paso %d', j);
-    THETAfd(j) = THETAfm(j) + THETAauxfd;  % Fallback al offset constante
+if abs(K3) > R3
+    % El mecanismo no ensambla en esta posicion -> fallback al offset original
+    warning('Tercer mecanismo no ensambla, paso %d', j);
+    THETAfd(j) = THETAfm(j) + THETAauxfd;
 else
-    tantheta4_3 = (-B1_3 - sqrt(disc3)) / (2*A1_3);  % Config abierta
-    theta4_3(j) = 2*atan(tantheta4_3);
-    THETA4_3(j) = rad2deg(theta4_3(j));
-    % Angulo de la falange distal en sistema global
-    THETAfd(j) = THETAfm(j) + THETA4_3(j) + THETAaux_fd3;
+    phi3 = atan2(Py3, Px3);
+    alpha2_3 = phi3 - acos(K3 / R3);   % rama de ensamble (configuracion abierta)
+    % Desenrollado para garantizar continuidad (evita saltos de +-2*pi)
+    if exist('alpha2_3_prev', 'var')
+        while (alpha2_3 - alpha2_3_prev) >  pi, alpha2_3 = alpha2_3 - 2*pi; end
+        while (alpha2_3 - alpha2_3_prev) < -pi, alpha2_3 = alpha2_3 + 2*pi; end
+    end
+    alpha2_3_prev = alpha2_3;
+    % Angulo absoluto de la falange distal: el balancin (montado en la distal
+    % con offset BETA2) tiene angulo local alpha2_3 = (thetafd + BETA2) - thetafm
+    THETAfd(j) = THETAfm(j) + rad2deg(alpha2_3 - deg2rad(BETA2));
 end
 
-thetafd(j)= deg2rad(THETAfd(j)); %Angulo de la falange distal en radianes
+thetafd(j) = deg2rad(THETAfd(j)); %Angulo de la falange distal en radianes
 pxPF(j) = fd*cos(thetafd(j)) + pxIFD(j);
 pyPF(j) = fd*sin(thetafd(j)) + pyIFD(j);
 
@@ -411,8 +422,8 @@ if max(DIP_relative) - min(DIP_relative) < 5
     warning('La articulacion DIP tiene menos de 5 grados de excursion. Revisar parametros.');
 end
 
-% Verificacion de condicion de Grashof
-links_3 = sort([a3, b3, c3, d3]);
+% Verificacion de ensamble del tercer mecanismo (bancada = fm)
+links_3 = sort([Lpc, Lpd, Lac, fm]);
 if links_3(1) + links_3(4) > links_3(2) + links_3(3)
     warning('El tercer mecanismo NO cumple la condicion de Grashof. Puede tener posiciones limite.');
 end

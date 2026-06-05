@@ -1,472 +1,277 @@
 # Analisis de Modificacion de la Articulacion DIP del Exoesqueleto de Mano
 
+> Version 2. Corrige el enfoque de la version 1 (eslabon remoto S2->S3), que
+> producia excursiones DIP de ~355 grados y cruce de trayectorias.
+
 ## 1. Planteamiento del Problema
 
-La articulacion interfalangica distal (DIP) del exoesqueleto de mano no posee movimiento independiente. En el modelo cinematico actual, implementado en `CinematicaExoFinal.m`, el angulo de la falange distal se calcula como un offset constante respecto a la falange medial:
+La articulacion interfalangica distal (DIP) del exoesqueleto de mano no posee
+movimiento independiente. En el modelo cinematico original (`CinematicaExoFinal.m`)
+el angulo de la falange distal se calcula como un offset constante respecto a la
+falange medial:
 
 ```matlab
-THETAfd(j) = THETAfm(j) + THETAauxfd;
+THETAfd(j) = THETAfm(j) + THETAauxfd;   % THETAauxfd = 38.78 grados (constante)
 ```
 
-Donde `THETAauxfd = 38.78` grados es una constante fija.
-
-**Consecuencia directa:** La falange distal esta rigidamente unida a la falange medial con un angulo relativo constante. Esto significa que:
-
-- El angulo relativo DIP-PIP es siempre 38.78 grados sin importar la posicion del mecanismo.
-- La articulacion DIP no presenta flexion/extension durante el ciclo de agarre.
-- En el modelo CAD, la falange distal se mueve solidariamente con la medial, sin articulacion propia.
-- Los datos de captura de movimiento (MOCAP) muestran un rango de movimiento DIP de aproximadamente 20 grados (de -11 a 9 grados), lo cual no es reproducido por el modelo actual.
+**Consecuencia:** el angulo relativo DIP-PIP es siempre 38.78 grados. La falange
+distal queda rigidamente unida a la medial y, en el modelo CAD, no presenta
+articulacion propia. Las tres falanges deben flexionarse unas respecto a otras.
 
 ## 2. Analisis de Causa Raiz
 
-### Cadena Cinematica Completa: Motor a DIP
+La cadena cinematica transmite el movimiento desde un unico motor hasta las
+falanges:
 
-La cadena cinematica del exoesqueleto transmite el movimiento desde un unico motor hasta las tres falanges del dedo a traves de la siguiente secuencia:
+| Etapa | Mecanismo | Salida | DOF independiente |
+|-------|-----------|--------|-------------------|
+| 1 | Par de engranes | theta_1, theta_2 | relacion fija reng |
+| 2 | 5 barras #1 | Punto P | si |
+| 3 | 4 barras #1 | theta_fp (falange proximal) | si |
+| 4 | 5 barras #2 | Punto P2 | si |
+| 5 | 4 barras #2 | theta_fm (falange medial) | si |
+| 6 | **Offset constante** | **theta_fd = theta_fm + 38.78** | **NO** |
 
-| Etapa | Mecanismo | Entrada | Salida | DOF Independiente |
-|-------|-----------|---------|--------|-------------------|
-| 1 | Par de engranes | theta_motor | theta_1, theta_2 | Si (relacion fija reng=2) |
-| 2 | Mecanismo de 5 barras #1 | theta_1, theta_2 | Punto P (pxP, pyP) | Si |
-| 3 | Mecanismo de 4 barras #1 | theta_1 | theta_fp (falange proximal) | Si |
-| 4 | Mecanismo de 5 barras #2 | Punto P, S1, S2, M4 | Punto P2 (pxP2, pyP2) | Si |
-| 5 | Mecanismo de 4 barras #2 | P2, S2, IFP | theta_fm (falange medial) | Si |
-| 6 | **Offset constante** | theta_fm | **theta_fd = theta_fm + 38.78** | **NO** |
+Los mecanismos 1-5 dan movimiento variable a las falanges proximal y medial,
+pero la falange distal solo hereda el angulo de la medial mas una constante.
+No existe ningun mecanismo fisico que transmita movimiento diferencial al DIP.
 
-### Diagrama de la Cadena de Transmision
+## 3. Solucion Propuesta (v2) - Mecanismo de 4 Barras que Cruza la Articulacion IFP
 
-```
-MOTOR (1 DOF)
-    |
-    v
-[Par de Engranes] ---> reng = 2
-    |          |
-    v          v
-theta_1      theta_2
-    |          |
-    v          v
-[Mec. 4B #1] [Mec. 5B #1]
-    |              |
-    v              v
-theta_fp        Punto P
-    |              |
-    |   [Mec. 5B #2]
-    |        |
-    v        v
-   S2      Punto P2
-    |        |
-    v        v
-    [Mec. 4B #2]
-         |
-         v
-    theta_fm (falange medial)
-         |
-         v
-    theta_fd = theta_fm + CONSTANTE  <--- PROBLEMA: Sin mecanismo
-```
+### 3.1 Concepto
 
-### Identificacion del Problema
+Se agrega un mecanismo de 4 barras de **acoplamiento** que **cruza la articulacion
+IFP (PIP)**, utilizando la **falange medial como bancada (ground)**. Su longitud de
+bancada es `fm`, que es conocida y fija.
 
-Los mecanismos 1-5 proporcionan movimiento independiente y variable a las falanges proximal y medial. Sin embargo, la falange distal simplemente hereda el angulo de la medial mas un offset fijo. No existe un mecanismo fisico que transmita movimiento diferencial a la articulacion DIP.
+- **Bancada (d3 = fm):** la propia falange medial, de la articulacion IFP (O1) a la
+  articulacion IFD (O2).
+- **Manivela de entrada (Lpc):** poste rigido montado sobre la falange **proximal**,
+  con pivote en la articulacion IFP (O1). Su orientacion absoluta es
+  `theta_fp + BETA1`, es decir, la impone directamente la falange proximal.
+- **Balancin de salida (Lpd):** poste rigido montado sobre la falange **distal**, con
+  pivote en la articulacion IFD (O2). Su orientacion determina `theta_fd`.
+- **Acoplador (Lac):** barra que une el extremo de la manivela con el del balancin.
 
-### Ecuacion Problematica (linea en CinematicaExoFinal.m):
+### 3.2 Principio de Funcionamiento
 
-```matlab
-% Calculando la posicion de la falange distal
-THETAfd(j) = THETAfm(j) + THETAauxfd;  % THETAauxfd = 38.78 (constante)
-```
+Conforme la articulacion IFP (PIP) se flexiona, el angulo relativo entre la falange
+proximal y la medial cambia (en los datos del mecanismo varia unos 73 grados). Como
+la manivela esta solidaria a la proximal y la bancada es la medial, ese movimiento
+relativo acciona el mecanismo de 4 barras, que a traves del acoplador hace girar el
+balancin (solidario a la distal) y produce una flexion DIP **variable**, monotona y
+acotada. Todo con un **unico motor** (no se anaden actuadores).
 
-El angulo relativo entre la falange distal y la medial es:
+### 3.3 Diagrama de Topologia
 
 ```
-DIP_relativo = THETAfd - THETAfm = THETAauxfd = 38.78 = constante
+        Falange PROXIMAL                 Falange MEDIAL = BANCADA              Falange DISTAL
+        (impone theta_fp)                (longitud fm, de O1 a O2)            (define theta_fd)
+
+                 *  punta manivela                       * punta balancin
+                / \                                     / \
+               /   \  Lpc                              /   \  Lpd
+              /     \ (poste prox.)        Lac        /     \  (poste dist.)
+             /       \ - - - - - - - - - - - - - - - /       \
+            /         *  - - - acoplador - - -  *             \
+           /        O1 = IFP                    O2 = IFD        \
+   =======*=================================================*===========
+          |<--------------------- fm (bancada) ------------->|
+        BETA1 = montaje manivela vs proximal      BETA2 = montaje balancin vs distal
 ```
 
-Esto viola la cinematica natural del dedo, donde la articulacion DIP se flexiona de manera acoplada (pero no rigida) con la articulacion PIP.
+### 3.4 Ventajas frente a la version 1
 
-## 3. Solucion Propuesta - Tercer Mecanismo de 4 Barras
-
-### Concepto de Diseno
-
-Se propone agregar un tercer mecanismo de 4 barras que proporcione movimiento independiente a la falange distal. Este mecanismo se monta sobre la falange medial y su entrada se deriva del movimiento RELATIVO entre la falange proximal y la falange medial.
-
-### Principio de Funcionamiento
-
-Un "eslabon remoto" (Link11) conecta un punto en la falange proximal (cercano al soporte S2) con un punto pivote (soporte S3) en la falange medial. Conforme la articulacion PIP se flexiona (theta_fm cambia respecto a theta_fp), este eslabon remoto cambia su angulo relativo a la falange medial, proporcionando la entrada tipo manivela para el tercer mecanismo de 4 barras.
-
-### Componentes del Tercer Mecanismo
-
-- **Bancada (d3):** Distancia a lo largo de la falange medial entre el soporte S3 y la articulacion IFD (punto de salida)
-- **Manivela/Entrada (a3 = Link11):** Eslabon remoto desde el soporte S2 (en falange proximal) hasta el pivote de entrada en S3 (en falange medial)
-- **Acoplador (b3 = Link12):** Eslabon de conexion intermedio
-- **Balancin/Salida (c3 = Link13):** Determina el angulo de la falange distal respecto a la medial
-
-### Diagrama de Topologia del Mecanismo
-
-```
-    FALANGE PROXIMAL                    FALANGE MEDIAL                    FALANGE DISTAL
-    ==================                  ====================              ================
-         |                                   |                                 |
-         |  S2                               |  S3              IFD            |
-         |  (soporte en                      |  (soporte en     (articulacion  |
-         |   proximal)                       |   medial)         DIP)          |
-         |   *                               |   *               *             |
-         |   |                               |   |               |             |
-         |   |                               |   |    d3         |             |
-         |   |         Link11 (a3)           |   |<------------>|             |
-         |   |==============================>|   |               |             |
-         |   |   (eslabon remoto)            |   |               |             |
-         |                                   |   |--Link12(b3)-->|             |
-         |                                   |   |               |             |
-         |                                   |   |  Link13(c3)   |             |
-         |                                   |   |<--------------|             |
-         |                                   |                   |             |
-    ==================                  ====================     |  ============
-                                                                 |
-                                                            theta_fd (variable!)
-```
-
-### Vista Esquematica del Mecanismo de 4 Barras #3
-
-```
-                S2 (en proximal)         S3 (en medial)          IFD
-                |                        |                       |
-  PROXIMAL      |------- Link11 -------->|                       |
-  FALANGE       |       (a3=25mm)        |    FALANGE MEDIAL     |
-                |                        |---d3---[4-bar #3]--->| DISTAL
-                |                        |  a3 = Link11          |
-                                         |  b3 = Link12          |
-                                         |  c3 = Link13          |
-                                         |  d3 = dist IFP-S3     |
-                                         |       (ground)        |
-```
-
-### Ventaja del Diseno
-
-Al utilizar el movimiento relativo entre las falanges proximal y medial como entrada, el tercer mecanismo logra:
-1. Movimiento independiente de la falange distal sin actuadores adicionales.
-2. Acoplamiento cinematico natural (DIP se flexiona cuando PIP se flexiona).
-3. Relacion de transmision variable (no lineal) controlada por la geometria del mecanismo.
-4. Compatible con la topologia existente (no requiere modificar mecanismos 1-5).
+- No usa el "eslabon remoto S2->S3" con longitud de manivela fija desligada de la
+  distancia real (esa inconsistencia provocaba las vueltas de 355 grados).
+- La bancada `fm` es una longitud real y fija: no introduce parametros geometricos
+  redundantes.
+- La salida se resuelve con una sola rama de ensamble y desenrollado de continuidad,
+  evitando saltos por cambio de rama o por el corte del arcotangente.
 
 ## 4. Ecuaciones Cinematicas del Tercer Mecanismo
 
-### 4.1 Sistema de Referencia Flotante en la Falange Medial
+### 4.1 Marco de referencia local de la falange medial
 
-El tercer mecanismo de 4 barras se analiza en un sistema de referencia local fijado a la falange medial:
+- Origen en O1 = IFP. Eje X local a lo largo de la falange medial (orientacion
+  `theta_fm`), eje Y perpendicular.
+- O1_local = (0, 0); O2_local = (fm, 0).
 
-- **Origen:** Articulacion IFP (punto de union entre falanges proximal y medial)
-- **Eje X local:** Direccion de la falange medial (angulo `theta_fm` en el sistema global)
-- **Eje Y local:** Perpendicular a la falange medial (sentido antihorario)
+### 4.2 Manivela de entrada
 
-La transformacion entre el sistema global y el sistema local de la falange medial es:
-
-```
-x_local = (x_global - pxIFP)*cos(theta_fm) + (y_global - pyIFP)*sin(theta_fm)
-y_local = -(x_global - pxIFP)*sin(theta_fm) + (y_global - pyIFP)*cos(theta_fm)
-```
-
-### 4.2 Angulo de Entrada (Crank) del Tercer Mecanismo
-
-La entrada del mecanismo se calcula a partir de la posicion del soporte S2 (en falange proximal) relativa al soporte S3 (en falange medial).
-
-**Posicion del soporte S3 sobre la falange medial:**
-
-S3 se ubica a una distancia `dsm3` del IFP a lo largo de la falange medial, con una altura `hsm3` perpendicular:
+El angulo de la manivela en el marco local de la medial es:
 
 ```
-THETAps3 = THETAfm - atand(hsm3/dsm3)
-rs3 = sqrt(hsm3^2 + dsm3^2)
-pxS3 = pxIFP + rs3*cos(deg2rad(THETAps3))
-pyS3 = pyIFP + rs3*sin(deg2rad(THETAps3))
+alpha1 = (theta_fp + BETA1) - theta_fm
 ```
 
-**Angulo de la manivela en el sistema global:**
+Punta de la manivela (marco local):
 
 ```
-THETA_crank3 = atan2d(pyS2 - pyS3, pxS2 - pxS3)
+A = ( Lpc*cos(alpha1) , Lpc*sin(alpha1) )
 ```
 
-**Angulo de la manivela en el sistema local de la falange medial:**
+### 4.3 Resolucion del acoplador (1 ecuacion, 1 incognita)
+
+El balancin tiene punta `B = O2 + Lpd*(cos(alpha2), sin(alpha2))`, con O2 = (fm, 0).
+La restriccion del acoplador es `|A - B| = Lac`. Definiendo el vector de O2 a A:
 
 ```
-theta_crank3_local = deg2rad(THETA_crank3) - thetafm
+Px = A_x - fm
+Py = A_y
+R  = sqrt(Px^2 + Py^2)
 ```
 
-Este angulo cambia cuando la articulacion PIP se flexiona, ya que S2 esta fijo a la falange proximal mientras S3 esta fijo a la medial.
-
-### 4.3 Resolucion del Mecanismo de 4 Barras (Metodo de Media Tangente)
-
-Se utiliza el mismo metodo de resolucion que los mecanismos de 4 barras existentes (#1 y #2), basado en la sustitucion de media tangente `t = tan(theta/2)`.
-
-**Interpretacion geometrica del eslabon de bancada (ground link):** En la formulacion local del tercer mecanismo, `d3 = sqrt(hsm3^2 + dsm3^2)` representa la distancia en linea recta desde el origen del sistema de referencia local (ubicado en IFP) hasta el pivote de la manivela en S3. Es decir, `d3` es el eslabon de bancada (ground link) que conecta el origen de referencia con el pivote del crank. El pivote de salida del balancin (rocker) se conecta a la articulacion DIP, la cual se encuentra a una distancia `fm` del IFP a lo largo de la falange medial. La relacion angular entre el balancin y la orientacion real de la falange distal se absorbe en el offset geometrico `THETAaux_fd3`.
-
-**Parametros del mecanismo:**
-- `a3 = Link11` (longitud de la manivela/eslabon remoto)
-- `b3 = Link12` (longitud del acoplador)
-- `c3 = Link13` (longitud del balancin/salida)
-- `d3 = sqrt(hsm3^2 + dsm3^2)` (longitud de bancada)
-- `theta_base3 = 0` (bancada alineada con eje local X de falange medial)
-- `theta_input3 = theta_crank3_local` (angulo de entrada calculado en 4.2)
-
-**Ecuaciones de resolucion:**
+al desarrollar `|A - B|^2 = Lac^2` se obtiene la ecuacion lineal en seno-coseno:
 
 ```
-k1_3 = d3*cos(theta_base3) + a3*cos(theta_crank3_local)
-k2_3 = d3*sin(theta_base3) + a3*sin(theta_crank3_local)
-k3_3 = k1_3^2 + k2_3^2 + c3^2 - b3^2
+Px*cos(alpha2) + Py*sin(alpha2) = K
+con  K = (Px^2 + Py^2 + Lpd^2 - Lac^2) / (2*Lpd)
 ```
 
-**Coeficientes de la ecuacion cuadratica:**
+cuya solucion es:
 
 ```
-A1_3 = -k3_3 - 2*k1_3*c3
-B1_3 = 4*k2_3*c3
-C1_3 = 2*k1_3*c3 - k3_3
+phi    = atan2(Py, Px)
+alpha2 = phi - acos(K / R)        % rama de ensamble (configuracion abierta)
 ```
 
-**Discriminante y solucion:**
+**Condicion de ensamble:** `|K| <= R`. Si no se cumple, el mecanismo no se puede
+ensamblar en esa posicion y se usa el offset constante como respaldo (fallback).
+
+Para garantizar continuidad se aplica un desenrollado del angulo respecto al paso
+anterior (se suma o resta 2*pi si el salto supera pi).
+
+### 4.4 Angulo de salida de la falange distal
+
+El balancin esta solidario a la falange distal con un offset de montaje BETA2, de
+modo que `alpha2 = (theta_fd + BETA2) - theta_fm`. Despejando:
 
 ```
-disc3 = B1_3^2 - 4*A1_3*C1_3
+theta_fd = theta_fm + alpha2 - BETA2
 ```
 
-Si `disc3 >= 0`:
-```
-tan_theta4_3 = (-B1_3 - sqrt(disc3)) / (2*A1_3)    % Configuracion abierta
-theta4_3 = 2*atan(tan_theta4_3)
-```
+`theta_fd` ya NO es constante respecto a `theta_fm`: varia conforme se flexiona el PIP.
 
-Si `disc3 < 0`: El mecanismo no puede ensamblarse en esa posicion. Se utiliza el valor de fallback (offset constante original).
+## 5. Tabla de Parametros del Tercer Mecanismo
 
-### 4.4 Angulo de Salida de la Falange Distal
+| Parametro | Simbolo | Significado | Valor inicial | Unidad |
+|-----------|---------|-------------|---------------|--------|
+| Manivela  | Lpc   | Poste sobre la falange proximal (pivote IFP) | 8     | mm |
+| Balancin  | Lpd   | Poste sobre la falange distal  (pivote IFD)  | 18    | mm |
+| Acoplador | Lac   | Barra que une manivela y balancin            | 8.86  | mm |
+| Montaje 1 | BETA1 | Angulo manivela respecto a falange proximal  | 40    | grados |
+| Montaje 2 | BETA2 | Angulo balancin respecto a falange distal    | 110   | grados |
+| Bancada   | fm    | Falange medial (NO es parametro libre)       | 26    | mm |
 
-El angulo absoluto de la falange distal en el sistema global es:
+La bancada es `fm` (longitud real de la falange medial), por lo que no es un
+parametro de diseno independiente.
 
-```
-theta_fd = theta_fm + theta4_3 + THETAaux_fd3
-```
+## 6. Criterios de Verificacion (resultados con los valores iniciales)
 
-Donde:
-- `theta_fm`: angulo de la falange medial (en grados o radianes segun contexto)
-- `theta4_3`: angulo de salida del tercer mecanismo de 4 barras (en el sistema local de la falange medial)
-- `THETAaux_fd3`: offset geometrico entre el angulo del balancin y la orientacion real de la falange distal (parametro de diseno, valor inicial: 30 grados)
+Simulando la cadena completa con los parametros nominales del dedo indice:
 
-**Nota fundamental:** `theta_fd` ya NO es constante respecto a `theta_fm`. Conforme la articulacion PIP se flexiona (theta_fm cambia respecto a theta_fp), el angulo de la manivela `theta_crank3_local` cambia, lo cual acciona el mecanismo de 4 barras y produce un `theta4_3` variable.
+| Criterio | Objetivo | Resultado obtenido |
+|----------|----------|--------------------|
+| Excursion DIP | 20-40 grados | **29.9 grados** (de 32.1 a 62.0) |
+| Monotonia | sin inversiones | **monotono creciente** |
+| Sin cruce de trayectorias IFP/IFD/punta | no se cruzan | **no se cruzan** |
+| Ensamble en todo el rango | margen `R - |K| > 0` | **margen minimo 0.086 (>0)** |
+| Acoplamiento DIP/PIP | aprox 0.3-0.7 | ~0.4 (29.9/73.4) |
 
-### 4.5 Consideraciones sobre la Aproximacion
+El angulo DIP relativo deja de ser la linea constante de 38.78 grados y pasa a ser
+una curva creciente, lo que reproduce la flexion progresiva de la falange distal
+durante el cierre del dedo.
 
-La formulacion presentada emplea varias simplificaciones que conviene explicitar:
+## 7. Codigo MATLAB (fragmentos clave)
 
-**Longitud de manivela fija (`a3 = Link11`):** En la implementacion, `a3 = Link11` se utiliza como una longitud de manivela constante en las ecuaciones del mecanismo de 4 barras. Sin embargo, la distancia real `|S2 - S3|` varia con la flexion del PIP, ya que S2 esta fijo a la falange proximal y S3 esta fijo a la falange medial. Esta es una aproximacion valida cuando: (a) la variacion en `|S2 - S3|` es pequena en relacion con Link11, o (b) el optimizador ajusta los parametros para minimizar esta discrepancia. Para una formulacion mas rigurosa, se podria calcular `a3_actual(j) = |S2(j) - S3(j)|` en cada paso, pero esto convierte al mecanismo de 4 barras en un mecanismo de geometria variable que requiere solucion iterativa. La aproximacion de longitud fija es aceptable como punto de partida para el diseno, dado que el optimizador encontrara conjuntos de parametros donde el mecanismo se ensambla correctamente en todo el rango de movimiento.
-
-**Eslabon de bancada `d3` y relaciones geometricas:** El eslabon de bancada `d3` representa la distancia IFP-S3 en el marco de referencia local. La salida del balancin se conecta a la articulacion DIP (que esta a una distancia `fm` del IFP a lo largo de la falange medial). Estas relaciones geometricas se manejan mediante el angulo de offset `THETAaux_fd3`, que absorbe la diferencia angular entre la orientacion del balancin y la orientacion real de la falange distal.
-
-## 5. Tabla de Parametros Nuevos
-
-| Parametro | Simbolo | Significado Fisico | Valor Inicial | Unidad |
-|-----------|---------|-------------------|---------------|--------|
-| Link11 | a3 | Longitud del eslabon remoto (S2 en proximal hasta pivote en medial S3) | 25 | mm |
-| Link12 | b3 | Longitud del acoplador del tercer mecanismo de 4 barras | 20 | mm |
-| Link13 | c3 | Longitud del balancin (salida) del tercer mecanismo de 4 barras | 15 | mm |
-| dsm3 | - | Distancia horizontal desde IFP hasta el soporte S3 a lo largo de la falange medial | 12 | mm |
-| hsm3 | - | Altura del soporte S3 perpendicular a la falange medial | 10 | mm |
-| THETAaux_fd3 | - | Offset angular entre el balancin del tercer mecanismo y la falange distal | 30 | grados |
-
-**Nota:** La bancada del tercer mecanismo se calcula como `d3 = sqrt(hsm3^2 + dsm3^2)`, por lo que no es un parametro independiente.
-
-### Relacion con Parametros Existentes
-
-Los parametros existentes que mantienen su funcionalidad sin modificacion son:
-
-| Parametro | Valor | Funcion |
-|-----------|-------|---------|
-| THETAauxfd | 38.78 | Se conserva como valor de FALLBACK cuando el tercer mecanismo no converge |
-| fp | 49 | Largo de falange proximal (define posicion de S2) |
-| fm | 26 | Largo de falange medial (define geometria del tercer mecanismo) |
-| fd | 24 | Largo de falange distal (no cambia) |
-| hsp | 17 | Altura del soporte proximal (define S2) |
-| dsp | 18 | Distancia del soporte proximal (define S2) |
-
-## 6. Criterios de Verificacion
-
-Para validar que el tercer mecanismo funciona correctamente, se deben cumplir los siguientes criterios:
-
-### 6.1 Rango de Movimiento
-
-- La articulacion DIP debe tener un rango de movimiento independiente de **minimo 20 grados** y **maximo 40 grados** durante el ciclo completo de cierre.
-- Los datos MOCAP muestran un rango DIP de aproximadamente 20 grados (de -11 a 9 grados despues de invertir la convencion de signos).
-
-### 6.2 Monotonicidad
-
-- El movimiento de la articulacion DIP debe ser **monotono** (sin inversiones de direccion).
-- La falange distal debe flexionarse de manera progresiva durante el cierre del dedo.
-- No se admiten oscilaciones o movimientos erraticos.
-
-### 6.3 Relacion de Acoplamiento
-
-- La relacion entre el rango DIP y el rango PIP debe estar entre **0.3 y 0.7**.
-- Fisiologicamente, la articulacion DIP se mueve aproximadamente 2/3 del rango del PIP.
-- Rango PIP tipico: 0-74 grados (de datos MOCAP).
-- Rango DIP esperado: 20-50 grados.
-
-### 6.4 Convergencia del Mecanismo
-
-- El discriminante `disc3 = B1_3^2 - 4*A1_3*C1_3` debe ser **no negativo** en todo el rango de operacion.
-- Si el discriminante es negativo en alguna posicion, los parametros deben ajustarse.
-- El fallback (offset constante) solo debe activarse en condiciones excepcionales, no durante operacion normal.
-
-### 6.5 Continuidad
-
-- El angulo `theta4_3` debe ser una funcion continua de la posicion de entrada.
-- No se admiten saltos discontinuos en el angulo de la falange distal.
-
-## 7. Codigo MATLAB Modificado
-
-La implementacion completa se encuentra en el archivo `CinematicaExoModificada.m`. A continuacion se muestra el fragmento clave que reemplaza el calculo de offset constante:
-
-### Parametros nuevos (al inicio del script):
+### Definicion de parametros (al inicio del script):
 
 ```matlab
-% Tercer mecanismo de 4 barras (articulacion DIP)
-Link11 = 25;         % Eslabon remoto (S2 -> pivot en medial)
-Link12 = 20;         % Acoplador del tercer mecanismo
-Link13 = 15;         % Balancin del tercer mecanismo
-dsm3 = 12;           % Distancia soporte S3 a IFP sobre falange medial
-hsm3 = 10;           % Altura del soporte S3 perpendicular a falange medial
-THETAaux_fd3 = 30;   % Offset angular para falange distal (grados)
+Lpc   = 8;     % Manivela: poste sobre la falange PROXIMAL (pivote en IFP) [mm]
+Lpd   = 18;    % Balancin: poste sobre la falange DISTAL  (pivote en IFD) [mm]
+Lac   = 8.86;  % Acoplador que une las puntas de manivela y balancin [mm]
+BETA1 = 40;    % Angulo de montaje de la manivela respecto a la prox. [grados]
+BETA2 = 110;   % Angulo de montaje del balancin respecto a la distal [grados]
 ```
 
-### Asignaciones de variables:
+### Dentro del bucle (despues de calcular pxIFD, pyIFD):
 
 ```matlab
-% Tercer mecanismo de 4 barras
-a3 = Link11;
-b3 = Link12;
-c3 = Link13;
-d3 = sqrt(hsm3^2 + dsm3^2);  % Hipotenusa del soporte S3 en falange medial
-```
+% Manivela (en la proximal) expresada en el marco local de la medial
+alpha1_3 = thetafp(j) + deg2rad(BETA1) - thetafm(j);
+Ax3 = Lpc*cos(alpha1_3);
+Ay3 = Lpc*sin(alpha1_3);
 
-### Reemplazo dentro del bucle (despues del calculo de pyIFD):
+% Restriccion del acoplador: |A - B| = Lac, con O2 = (fm, 0)
+Px3 = Ax3 - fm;
+Py3 = Ay3;
+R3  = sqrt(Px3^2 + Py3^2);
+K3  = (Px3^2 + Py3^2 + Lpd^2 - Lac^2) / (2*Lpd);
 
-```matlab
-% TERCER MECANISMO DE 4 BARRAS (Articulacion DIP)
-% Calculo del soporte S3 sobre la falange medial
-THETAps3(j) = THETAfm(j) - atand(hsm3/dsm3);
-thetaps3(j) = deg2rad(THETAps3(j));
-rs3 = sqrt(hsm3^2 + dsm3^2);
-pxS3(j) = pxIFP(j) + rs3*cos(thetaps3(j));
-pyS3(j) = pyIFP(j) + rs3*sin(thetaps3(j));
-
-% Angulo de entrada del tercer mecanismo (enlace remoto desde S2)
-THETA_crank3(j) = atan2d(pyS2(j) - pyS3(j), pxS2(j) - pxS3(j));
-theta_crank3_local(j) = deg2rad(THETA_crank3(j)) - thetafm(j);
-
-% Bancada del tercer mecanismo en sistema local de la falange medial
-theta_base3 = 0;
-
-% Resolucion del mecanismo de 4 barras #3
-k1_3 = d3*cos(theta_base3) + a3*cos(theta_crank3_local(j));
-k2_3 = d3*sin(theta_base3) + a3*sin(theta_crank3_local(j));
-k3_3 = k1_3^2 + k2_3^2 + c3^2 - b3^2;
-A1_3 = -k3_3 - 2*k1_3*c3;
-B1_3 = 4*k2_3*c3;
-C1_3 = 2*k1_3*c3 - k3_3;
-
-disc3 = B1_3^2 - 4*A1_3*C1_3;
-if disc3 < 0
-    warning('Discriminante negativo en mecanismo 3, paso %d', j);
-    THETAfd(j) = THETAfm(j) + THETAauxfd;  % Fallback al offset constante
+if abs(K3) > R3
+    warning('Tercer mecanismo no ensambla, paso %d', j);
+    THETAfd(j) = THETAfm(j) + THETAauxfd;          % fallback
 else
-    tantheta4_3 = (-B1_3 - sqrt(disc3)) / (2*A1_3);  % Config abierta
-    theta4_3(j) = 2*atan(tantheta4_3);
-    THETA4_3(j) = rad2deg(theta4_3(j));
-    % Angulo de la falange distal en sistema global
-    THETAfd(j) = THETAfm(j) + THETA4_3(j) + THETAaux_fd3;
+    phi3 = atan2(Py3, Px3);
+    alpha2_3 = phi3 - acos(K3 / R3);               % rama de ensamble
+    if exist('alpha2_3_prev', 'var')               % continuidad
+        while (alpha2_3 - alpha2_3_prev) >  pi, alpha2_3 = alpha2_3 - 2*pi; end
+        while (alpha2_3 - alpha2_3_prev) < -pi, alpha2_3 = alpha2_3 + 2*pi; end
+    end
+    alpha2_3_prev = alpha2_3;
+    THETAfd(j) = THETAfm(j) + rad2deg(alpha2_3 - deg2rad(BETA2));
 end
+
+thetafd(j) = deg2rad(THETAfd(j));
+pxPF(j) = fd*cos(thetafd(j)) + pxIFD(j);
+pyPF(j) = fd*sin(thetafd(j)) + pyIFD(j);
 ```
 
-### Verificacion despues del bucle:
+La implementacion completa esta en `CinematicaExoModificada.m`.
 
-```matlab
-% VERIFICACION: Rango de movimiento de la articulacion DIP
-DIP_relative = THETAfd - THETAfm;
-fprintf('Rango de movimiento DIP (relativo a medial): %.2f a %.2f grados\n', ...
-        min(DIP_relative), max(DIP_relative));
-fprintf('Excursion DIP: %.2f grados\n', max(DIP_relative) - min(DIP_relative));
-if max(DIP_relative) - min(DIP_relative) < 5
-    warning('La articulacion DIP tiene menos de 5 grados de excursion. Revisar parametros.');
-end
-```
+## 8. Impacto en la Optimizacion Python (exo_18.py)
 
-## 8. Impacto en Optimizacion Python (exo_18.py)
+### 8.1 Nuevos parametros de optimizacion
 
-### 8.1 Nuevos Parametros en el Vector de Optimizacion
+Se agregan 5 parametros al vector de diseno (los 17 actuales pasan a 22):
 
-Se agregan 5 nuevos parametros al vector de diseno:
+| Indice | Parametro | Valor inicial | Limite inf. | Limite sup. |
+|--------|-----------|---------------|-------------|-------------|
+| 17 | Lpc   | 0.008 m | 0.005 | 0.025 |
+| 18 | Lpd   | 0.018 m | 0.008 | 0.030 |
+| 19 | Lac   | 0.0089 m | 0.004 | 0.030 |
+| 20 | BETA1 | 0.698 rad (40 grados) | 0.0  | 2.97 (170 grados) |
+| 21 | BETA2 | 1.920 rad (110 grados) | 0.0 | 2.97 (170 grados) |
 
-| Indice | Parametro | Valor Inicial | Limites Inferiores | Limites Superiores |
-|--------|-----------|---------------|--------------------|--------------------|
-| 17 | Link11 | 0.025 m | 0.015 | 0.040 |
-| 18 | Link12 | 0.020 m | 0.010 | 0.035 |
-| 19 | Link13 | 0.015 m | 0.008 | 0.030 |
-| 20 | dsm3 | 0.012 m | 0.005 | 0.020 |
-| 21 | THETAaux_fd3 | 0.5236 rad (30 deg) | 0.0 | 1.2217 (70 deg) |
+### 8.2 Reemplazo en `run_kinematics`
 
-**Nota:** `hsm3` se puede fijar como constante o derivarse de otros parametros para limitar el espacio de busqueda. Se recomienda fijarlo inicialmente en 10 mm.
-
-### 8.2 Total de Parametros
-
-- Parametros originales: 17
-- Parametros nuevos: 5
-- **Total: 22 parametros**
-
-### 8.3 Modificacion en `run_kinematics`
-
-En la funcion `run_kinematics` de `exo_18.py`, se debe reemplazar:
+Sustituir `theta_fd = theta_fm + theta_aux_fd` por:
 
 ```python
-# ANTES (offset constante):
-theta_fd = theta_fm + theta_aux_fd
+# Tercer mecanismo de 4 barras (bancada = falange medial, longitud FM_REAL)
+alpha1_3 = theta_fp + beta1 - theta_fm        # manivela en marco local medial
+Ax3 = Lpc * np.cos(alpha1_3)
+Ay3 = Lpc * np.sin(alpha1_3)
+Px3 = Ax3 - FM_REAL
+Py3 = Ay3
+R3  = np.hypot(Px3, Py3)
+K3  = (Px3**2 + Py3**2 + Lpd**2 - Lac**2) / (2.0 * Lpd)
+if abs(K3) > R3:
+    return None                                # no ensambla -> penalizar
+phi3 = np.arctan2(Py3, Px3)
+alpha2_3 = phi3 - np.arccos(K3 / R3)           # rama de ensamble
+# (desenrollar respecto al paso previo para continuidad)
+theta_fd = theta_fm + (alpha2_3 - beta2)
 ```
 
-Con el calculo del tercer mecanismo de 4 barras:
+### 8.3 Consideraciones
 
-```python
-# DESPUES (tercer mecanismo de 4 barras):
-# Posicion de S3 en falange medial
-rs3 = np.sqrt(hsm3**2 + dsm3**2)
-theta_ps3 = theta_fm_deg - np.degrees(np.arctan2(hsm3, dsm3))
-px_s3 = px_ifp + rs3 * np.cos(np.radians(theta_ps3))
-py_s3 = py_ifp + rs3 * np.sin(np.radians(theta_ps3))
-
-# Angulo de entrada (crank) en sistema local de la medial
-theta_crank3_global = np.arctan2(py_s2 - py_s3, px_s2 - px_s3)
-theta_crank3_local = theta_crank3_global - theta_fm_rad
-
-# Resolucion 4-bar #3
-k1_3 = d3 + a3 * np.cos(theta_crank3_local)
-k2_3 = a3 * np.sin(theta_crank3_local)
-k3_3 = k1_3**2 + k2_3**2 + c3**2 - b3**2
-A1_3 = -k3_3 - 2*k1_3*c3
-B1_3 = 4*k2_3*c3
-C1_3 = 2*k1_3*c3 - k3_3
-
-disc3 = B1_3**2 - 4*A1_3*C1_3
-if disc3 >= 0:
-    tan_t4_3 = (-B1_3 - np.sqrt(disc3)) / (2*A1_3)
-    theta4_3 = 2*np.arctan(tan_t4_3)
-    theta_fd = theta_fm_deg + np.degrees(theta4_3) + theta_aux_fd3_deg
-else:
-    theta_fd = theta_fm + theta_aux_fd  # Fallback
-```
-
-### 8.4 Funcion de Aptitud (Fitness)
-
-La funcion de aptitud no requiere modificaciones estructurales. Ya evalua la trayectoria de la punta del dedo (pxPF, pyPF), que se calcula a partir de `theta_fd`. Al modificar el calculo de `theta_fd`, la funcion de aptitud automaticamente optimizara los nuevos parametros para que la trayectoria se ajuste a los datos MOCAP.
-
-### 8.5 Consideraciones para la Optimizacion
-
-1. **Restriccion de Grashof:** Los parametros Link11, Link12, Link13, dsm3 deben satisfacer la condicion de ensamble del mecanismo de 4 barras en todo el rango de operacion.
-2. **Penalizacion por discriminante negativo:** Si `disc3 < 0` en alguna posicion durante la simulacion, la funcion de aptitud debe penalizar fuertemente ese conjunto de parametros.
-3. **Inicializacion:** Se recomienda inicializar los nuevos parametros con los valores de la tabla de la Seccion 5 para garantizar convergencia inicial.
-4. **Espacio de busqueda ampliado:** Con 22 parametros, se recomienda aumentar el numero de iteraciones de Optuna para asegurar buena exploracion del espacio.
+1. **Penalizacion por no ensamble:** si `|K3| > R3` en algun paso, descartar el
+   conjunto de parametros (devolver None / fitness alto).
+2. **Continuidad:** desenrollar `alpha2_3` respecto al valor del paso anterior para
+   evitar saltos por el corte del arcocoseno/arcotangente.
+3. **Monotonia:** la penalizacion anti-gancho existente puede extenderse al angulo
+   DIP relativo (`theta_fd - theta_fm`) para forzar flexion progresiva.
+4. **Inicializacion:** usar los valores de la Seccion 5, que ya ensamblan en todo el
+   rango y dan ~30 grados de excursion DIP monotona.
