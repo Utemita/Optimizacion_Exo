@@ -174,15 +174,17 @@ def solve_four_bar(a, b, c, d, theta2, theta1):
 # ==============================================================================
 def run_kinematics(p, th_input):
     (Bancada1, Bancada2, Link1, Link2, Link3, Link4, Link5,
-     Link6, Link7, Link8, Link9, Link10, hsp, dsp,
+     Link6, Link7, Link8, Link10, hsp, dsp,
      theta_aux_fm, theta_aux_fd, gear_ratio, theta_offset) = p
 
     # Validaciones básicas
     if gear_ratio <= 0:
         return None
-    if min(p[:12]) <= 0.005:   # longitudes de eslabón mínimas
+    if min(p[:11]) <= 0.005:   # longitudes de eslabón mínimas
         return None
     if hsp <= 0 or dsp <= 0:
+        return None
+    if FP_REAL - 2.0 * dsp <= 0.001:
         return None
 
     # Pre-cálculos fijos (independientes del ángulo de entrada)
@@ -237,7 +239,7 @@ def run_kinematics(p, th_input):
         theta1m2   = np.arctan2(pys2 - pys1, pxs2 - pxs1) - theta_roll
         theta2m2   = np.arctan2(pyP  - pym4, pxP  - pxm4) - theta_roll
 
-        res5_2 = sol_5_barras(Link6, Link7, Link5/2.0, Link8, Link9,
+        res5_2 = sol_5_barras(FP_REAL - 2.0 * dsp, Link7, Link5/2.0, Link3, Link6,
                               theta1m2, theta2m2)
         if res5_2 is None:
             return None
@@ -270,7 +272,7 @@ def run_kinematics(p, th_input):
         # anterior, la solución no es físicamente realizable y se descarta.
         # -----------------------------------------------------------------
         if prev_theta_fm is not None:
-            delta_fm = theta_fm - prev_theta_fm
+            delta_fm = (theta_fm - prev_theta_fm + np.pi) % (2*np.pi) - np.pi
             # Toleramos pequeñas oscilaciones numéricas (< 0.5°)
             if delta_fm < -np.deg2rad(0.5):
                 return None   # retroceso → solución no válida
@@ -341,8 +343,8 @@ bounds = [
     (0.01,  0.12), (0.01,  0.12), (0.01, 0.12),  # Link1, Link2, Link3
     (0.01,  0.12), (0.01,  0.12),                 # Link4, Link5
     (0.01,  0.12), (0.01,  0.12), (0.01, 0.12),  # Link6, Link7, Link8
-    (0.01,  0.12), (0.01,  0.12),                 # Link9, Link10
-    (-0.04, 0.08), (0.005, 0.08),                 # hsp, dsp  (dsp > 0 siempre)
+    (0.01,  0.12),                                 # Link10
+    (-0.04, 0.08), (0.005, 0.023),                 # hsp, dsp  (dsp < 0.0245 para r1m2 > 0)
     (0.0,   np.pi), (0.0,  np.pi),                # theta_aux_fm, theta_aux_fd
     (1.0,   8.0),                                  # gear_ratio
     (-np.pi, np.pi)                                # theta_offset
@@ -372,6 +374,21 @@ def objective_optuna(trial):
 # --- 9. EJECUCIÓN PRINCIPAL ---
 # ==============================================================================
 if __name__ == '__main__':
+    # Quick validation with MATLAB-equivalent parameters (converted to meters)
+    p_matlab = [0.018, 0.020, 0.035, 0.049, 0.025, 0.020, 0.025,
+                0.055, 0.035, 0.052, 0.04601,
+                0.017, 0.018,
+                np.deg2rad(51.39), np.deg2rad(38.78),
+                2.0, np.deg2rad(109)]
+    test_result = run_kinematics(p_matlab, theta_input)
+    if test_result is not None:
+        print(">> VALIDACION: Cinematica con parametros MATLAB - OK")
+        test_fitness = fitness_function(p_matlab)
+        print(f"   Fitness con params MATLAB: {test_fitness:.6f}")
+    else:
+        print(">> VALIDACION: Cinematica con parametros MATLAB - FALLO")
+        print("   ADVERTENCIA: Los parametros de referencia no producen una solucion valida.")
+
     print('\n====================================================')
     print('>> ETAPA 1: Búsqueda de Estrategia con Optuna')
     print('====================================================')
@@ -437,7 +454,7 @@ if __name__ == '__main__':
         "Link3 (m)",               "Link4 (m)",
         "Link5 (m)",               "Link6 (m)",
         "Link7 (m)",               "Link8 (m)",
-        "Link9 (m)",               "Link10 (m)",
+        "Link10 (m)",
         "hsp (m)",                 "dsp (m)",
         "Theta Aux FM (rad)",      "Theta Aux FD (rad)",
         "Relación de engranaje",   "Theta Offset (rad)"
@@ -482,11 +499,11 @@ if __name__ == '__main__':
     ax.set_ylabel('Eje Y (mm)', fontsize=12)
     plt.tight_layout()
     plt.savefig('Resultados_Biofidelidad.png', dpi=150)
-    plt.show()
+    plt.close()
 
     # --- Guardado ---
     np.savetxt("Parametros_Optimizados_Mecanismo.txt", p_opt,
-               header="Eslabones y offsets optimizados (18 parametros)")
+               header="Eslabones y offsets optimizados (17 parametros)")
 
     if len(mocap_pts['ifp']) == len(sim_aligned['ifp']):
         pd.DataFrame({
