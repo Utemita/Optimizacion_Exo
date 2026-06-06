@@ -162,6 +162,21 @@ def compute_geometry(THETA2):
     ROK3 = IFD + Lpd*np.array([np.cos(thfd + np.deg2rad(BETA2)),
                                 np.sin(thfd + np.deg2rad(BETA2))])
     TIP = IFD + fd*np.array([np.cos(thfd), np.sin(thfd)])
+
+    # Reflejar CRK3 y ROK3 al lado DORSAL (sobre la linea IFP-IFD)
+    # La solucion analitica los coloca del lado palmar; el montaje fisico
+    # es dorsal. La reflexion preserva todas las longitudes.
+    def reflect_about_line(point, line_start, line_end):
+        d_vec = line_end - line_start
+        d_vec = d_vec / np.linalg.norm(d_vec)
+        v = point - line_start
+        para = np.dot(v, d_vec) * d_vec
+        perp = v - para
+        return point - 2 * perp
+
+    CRK3 = reflect_about_line(CRK3, IFP, IFD)
+    ROK3 = reflect_about_line(ROK3, IFP, IFD)
+
     pts['CRK3'] = CRK3; pts['ROK3'] = ROK3; pts['TIP'] = TIP; pts['thfd'] = thfd
 
     return pts
@@ -403,10 +418,11 @@ ax.legend(handles=legend_elements, loc='upper left', fontsize=9,
 
 # ---- CUADRO DE INFORMACION del 4B#3 ----
 info_text = (
-    '4-Barras #3 (DIP):\n'
+    '4-Barras #3 (DIP) - DORSAL:\n'
+    '  Posicion: lado DORSAL (reflejado del analitico)\n'
     '  Bancada = Fm = %g mm (IFP a IFD)\n'
     '  Manivela (Lpc=%g) rigida a Fp, pivote en IFP\n'
-    '  Acoplador (Lac=%.2f) flotante\n'
+    '  Acoplador (Lac=%.2f) CRK3-ROK3\n'
     '  Balancin (Lpd=%g) rigida a Fd, pivote en IFD\n'
     '  BETA1=%g deg, BETA2=%g deg\n'
     '  Entrada: rotacion relativa Fp vs Fm (PIP)' %
@@ -498,4 +514,15 @@ diffs = np.diff(dips)
 mono = bool(np.all(diffs >= -1e-9) or np.all(diffs <= 1e-9))
 print(f"  DIP relativo: {dips[0]:.2f} -> {dips[-1]:.2f} deg  (excursion {dips.max()-dips.min():.2f} deg)")
 print(f"  Monotono: {'SI' if mono else 'NO'}")
+
+# Verificacion DORSAL: CRK3 y ROK3 deben estar del lado dorsal de la falange medial
+print("\n=== VERIFICACION DORSAL (CRK3, ROK3 arriba de la linea IFP-IFD) ===")
+d_phal = P['IFD'] - P['IFP']
+d_norm = d_phal / np.linalg.norm(d_phal)
+dorsal_dir = np.array([d_norm[1], -d_norm[0]])  # CW rotation = dorsal (arriba)
+dot_crk3 = np.dot(P['CRK3'] - P['IFP'], dorsal_dir)
+dot_rok3 = np.dot(P['ROK3'] - P['IFP'], dorsal_dir)
+print(f"  CRK3 dot dorsal = {dot_crk3:.3f}  ({'DORSAL OK' if dot_crk3 > 0 else 'PALMAR - ERROR'})")
+print(f"  ROK3 dot dorsal = {dot_rok3:.3f}  ({'DORSAL OK' if dot_rok3 > 0 else 'PALMAR - ERROR'})")
+
 print(f"\nDiagrama guardado: diagrama_mecanismo_completo.png")

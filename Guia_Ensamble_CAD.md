@@ -153,20 +153,24 @@ Este mecanismo opera en un sistema de referencia rotado cuyo centro esta en el p
 ### 4.8 Tercer mecanismo de 4 barras (driver DIP)
 
 Este es el mecanismo mas critico para la flexion independiente del DIP.
+Se construye del lado DORSAL de la falange medial (arriba en el diagrama).
 
 1. **Bancada**: la propia falange medial (fm = 26 mm, de IFP a IFD).
 2. **Manivela (Lpc = 8 mm)**:
    - Rigidamente unida a la falange PROXIMAL.
    - Su pivote es la articulacion IFP.
    - Forma un angulo BETA1 = 40 deg respecto a la direccion de la falange proximal.
+   - Se extiende hacia el lado DORSAL (arriba de la linea IFP-IFD).
    - Cuando la falange proximal gira, esta manivela gira con ella.
 3. **Acoplador (Lac = 8.86 mm)**:
-   - Eslabon flotante que conecta la punta de la manivela (CRK3) con la punta del balancin (ROK3).
-   - Revoluta en ambos extremos.
+   - Eslabon que conecta la punta de la manivela (CRK3) con la punta del balancin (ROK3).
+   - Revoluta en ambos extremos. NO es flotante: esta conectado en CRK3 y ROK3.
+   - Se ubica del lado dorsal, visible en el diagrama.
 4. **Balancin (Lpd = 18 mm)**:
    - Rigidamente unido a la falange DISTAL.
    - Su pivote es la articulacion IFD.
    - Forma un angulo BETA2 = 110 deg respecto a la direccion de la falange distal.
+   - Se extiende hacia el lado DORSAL (arriba de la linea IFP-IFD).
    - La orientacion de la falange distal queda determinada por el angulo de este balancin.
 
 **Como funciona**: Cuando la articulacion PIP se flexiona (la falange medial rota
@@ -225,14 +229,21 @@ THETA2, pxIFP, pyIFP, pxIFD, pyIFD, pxTIP, pyTIP, DIP_relativo
 - El diagrama muestra las posiciones EXACTAS calculadas por las ecuaciones de MATLAB.
 - Los angulos BETA1 y BETA2 determinan hacia que lado del eje de la falange se
   extienden la manivela y el balancin del 4B#3 respectivamente.
-- Con BETA1=40 y BETA2=110, las ecuaciones colocan los pivotes CRK3 y ROK3 del
-  lado palmar (o segun la orientacion global, del lado que las ecuaciones determinan).
-- Si por restriccion de espacio se requiere montaje dorsal, se debe:
-  1. Reflejar la geometria del 4B#3 respecto al eje de la falange medial.
-  2. Modificar BETA1 y BETA2 (por ejemplo BETA1 = -40, BETA2 = -110 o sus complementos).
-  3. Verificar que la flexion DIP siga siendo monotona con los nuevos angulos.
-- La cinematica de salida (THETAfd) es independiente del lado de montaje siempre
-  que se mantenga la rama de ensamble correcta en el solver.
+- **MONTAJE DORSAL**: El tercer mecanismo de 4 barras (4B#3) se construye del
+  lado DORSAL del dedo (lado opuesto a la palma, +Y en el diagrama). Esto es
+  necesario porque las falanges apoyan su lado palmar contra los objetos
+  manipulados.
+- El diagrama muestra CRK3 y ROK3 ARRIBA de la linea de la falange medial
+  (IFP-IFD). Esta es la posicion de construccion real (dorsal).
+- La reflexion del mecanismo sobre la linea de la bancada (IFP-IFD) preserva
+  TODAS las longitudes de eslabon (Lpc=8, Lac=8.86, Lpd=18 mm) y los angulos
+  de montaje (BETA1=40, BETA2=110 deg). La cinematica de salida (THETAfd) es
+  identica.
+- En CAD, construir los pivotes CRK3 y ROK3 del lado dorsal, exactamente como
+  aparecen en `diagrama_mecanismo_completo.png`.
+- NO hay eslabones flotantes: cada eslabon del 4B#3 esta conectado en ambos
+  extremos por articulaciones de revolucion, y la manivela/balancin estan
+  rigidamente unidos a sus respectivas falanges (proximal y distal).
 
 ---
 

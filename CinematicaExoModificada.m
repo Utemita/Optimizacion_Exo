@@ -60,6 +60,12 @@ THETAauxfd = 38.78;
 % posiciones fisicas de manivela, acoplador y balancin se reflejan al lado
 % dorsal en el script de generacion del diagrama (diagrama_mecanismo.py)
 % para representar el mecanismo donde se construira realmente en CAD.
+%
+% NOTA: El diagrama (diagrama_mecanismo_completo.png) muestra CRK3 y ROK3
+% reflejados sobre la linea IFP-IFD, es decir en el lado DORSAL (+Y).
+% Esta reflexion preserva todas las longitudes de eslabon (Lpc, Lac, Lpd)
+% y los angulos de montaje (BETA1, BETA2). La cinematica de salida
+% (THETAfd) es identica independientemente del lado de montaje.
 Lpc  = 8;     % Manivela: poste sobre la falange PROXIMAL (pivote en IFP) [mm]
 Lpd  = 18;    % Balancin: poste sobre la falange DISTAL  (pivote en IFD) [mm]
 Lac  = 8.86;  % Acoplador que une las puntas de manivela y balancin [mm]
