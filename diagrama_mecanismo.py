@@ -62,6 +62,16 @@ def four_bar_open(a_, b_, c_, d_, th2_, th1_):
     return 2*np.arctan((-B1 - np.sqrt(disc)) / (2*A1))
 
 
+def _reflect_about_line(point, line_start, line_end):
+    """Refleja un punto sobre una linea definida por dos puntos (preserva distancias)."""
+    d_vec = line_end - line_start
+    d_vec = d_vec / np.linalg.norm(d_vec)
+    v = point - line_start
+    para = np.dot(v, d_vec) * d_vec
+    perp = v - para
+    return point - 2 * perp
+
+
 def compute_geometry(THETA2):
     """Calcula todas las posiciones de los puntos del mecanismo para un angulo dado."""
     th2 = np.deg2rad(THETA2)
@@ -166,16 +176,8 @@ def compute_geometry(THETA2):
     # Reflejar CRK3 y ROK3 al lado DORSAL (sobre la linea IFP-IFD)
     # La solucion analitica los coloca del lado palmar; el montaje fisico
     # es dorsal. La reflexion preserva todas las longitudes.
-    def reflect_about_line(point, line_start, line_end):
-        d_vec = line_end - line_start
-        d_vec = d_vec / np.linalg.norm(d_vec)
-        v = point - line_start
-        para = np.dot(v, d_vec) * d_vec
-        perp = v - para
-        return point - 2 * perp
-
-    CRK3 = reflect_about_line(CRK3, IFP, IFD)
-    ROK3 = reflect_about_line(ROK3, IFP, IFD)
+    CRK3 = _reflect_about_line(CRK3, IFP, IFD)
+    ROK3 = _reflect_about_line(ROK3, IFP, IFD)
 
     pts['CRK3'] = CRK3; pts['ROK3'] = ROK3; pts['TIP'] = TIP; pts['thfd'] = thfd
 
