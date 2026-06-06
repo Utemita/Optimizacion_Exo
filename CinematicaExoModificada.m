@@ -50,6 +50,16 @@ THETAauxfd = 38.78;
 % desligada de la distancia real |S2-S3|) era inconsistente y producia
 % excursiones de ~355 grados (la punta se "volteaba" y las trayectorias se
 % cruzaban). Esta formulacion lo corrige.
+%
+% MONTAJE FISICO (DORSAL): por restriccion fisica el mecanismo se construye
+% del lado dorsal del dedo (lado opuesto a la palma), porque las falanges
+% apoyan el lado palmar contra los objetos manipulados. Por la simetria del
+% 4 barras plano respecto a su bancada (fm), un mecanismo "palmar" y su
+% reflejo "dorsal" producen IDENTICA cinematica de salida (mismo theta_fd).
+% Esta implementacion calcula theta_fd con la convencion estandar; las
+% posiciones fisicas de manivela, acoplador y balancin se reflejan al lado
+% dorsal en el script de generacion del diagrama (diagrama_mecanismo.py)
+% para representar el mecanismo donde se construira realmente en CAD.
 Lpc  = 8;     % Manivela: poste sobre la falange PROXIMAL (pivote en IFP) [mm]
 Lpd  = 18;    % Balancin: poste sobre la falange DISTAL  (pivote en IFD) [mm]
 Lac  = 8.86;  % Acoplador que une las puntas de manivela y balancin [mm]

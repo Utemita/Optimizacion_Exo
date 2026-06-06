@@ -167,6 +167,44 @@ theta_fd = theta_fm + alpha2 - BETA2
 La bancada es `fm` (longitud real de la falange medial), por lo que no es un
 parametro de diseno independiente.
 
+### 5.1 Montaje fisico DORSAL del 4B#3 y equivalencia palmar-dorsal
+
+Por restriccion fisica el mecanismo del DIP se construye del lado **dorsal** del
+dedo (lado opuesto a la palma), porque las falanges apoyan el lado palmar contra
+los objetos manipulados y el exoesqueleto no puede invadir esa zona. Las tres
+articulaciones (MCF, IFP/PIP, IFD/DIP) quedan asi sostenidas por mecanismos
+dorsales (5B#1 sobre MCF, 5B#2 + 4B#1 sobre la proximal-IFP, 4B#2 sobre la medial,
+y el nuevo 4B#3 sobre la distal-IFD).
+
+**Propiedad clave (simetria del 4 barras):** el 4 barras plano es invariante bajo
+reflexion respecto a su bancada. Para el 4B#3, cuya bancada es la falange medial
+(eje IFP-IFD), un mecanismo "palmar" y su reflejo "dorsal" tienen las mismas
+longitudes (Lpc, Lpd, Lac), los mismos offsets de montaje (BETA1, BETA2) en valor
+absoluto, y producen **identico angulo de salida** `theta_fd`. La unica diferencia
+es donde quedan fisicamente las barras intermedias (manivela, acoplador, balancin):
+arriba (dorsal) o abajo (palmar) de la falange medial.
+
+**Consecuencia para el codigo:** las ecuaciones cinematicas de la Seccion 4 son
+validas tal cual, sin cambio alguno. La cinematica numerica
+(`CinematicaExoModificada.m`, `exo_18.py`) calcula `theta_fd` correctamente con la
+convencion estandar. Solo el **diagrama de eslabones** refleja las posiciones de la
+manivela y el balancin respecto a la recta IFP-IFD (la bancada) para mostrar el
+mecanismo donde se construira realmente en el CAD.
+
+**Implementacion del reflejo en `diagrama_mecanismo.py`:** dado un punto P palmar,
+su reflejo dorsal respecto a la recta que pasa por A en direccion unitaria u_hat es
+
+```
+v        = P - A
+parallel = (v . u_hat) * u_hat
+perp     = v - parallel
+P_dorsal = A + parallel - perp        # invierte la componente perpendicular
+```
+
+Aplicado a los puntos `CRK3` (extremo de la manivela) y `ROK3` (extremo del
+balancin) con `A = IFP` y `u_hat = (IFD - IFP) / fm`, los lleva al lado dorsal sin
+modificar la cinematica de `theta_fd`.
+
 ## 6. Criterios de Verificacion (resultados con los valores iniciales)
 
 Simulando la cadena completa con los parametros nominales del dedo indice:
